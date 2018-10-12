@@ -1,5 +1,6 @@
 #!/usr/bin/lua
 
+package.cpath='../../dist/lib/lua/5.1/?.so;'..package.cpath
 local ev = require("ev")
 local evmg = require("evmongoose")
 local loop = ev.Loop.default

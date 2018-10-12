@@ -1,11 +1,19 @@
 find_library(LIBEV_LIBRARY NAMES ev)
 find_path(LIBEV_INCLUDE_DIR ev.h PATH_SUFFIXES include)
 include(FindPackageHandleStandardArgs)
-find_package_handle_standard_args(libev DEFAULT_MSG LIBEV_LIBRARY LIBEV_INCLUDE_DIR)
+
+message(LIBEV_INCLUDE_DIR is ${LIBEV_INCLUDE_DIR})
+
+find_package_handle_standard_args(libev DEFAULT_MSG 
+    LIBEV_LIBRARY 
+    LIBEV_INCLUDE_DIR)
+
 if (NOT LIBEV_FOUND)
 	message(FATAL_ERROR "libev not found")
 endif (NOT LIBEV_FOUND)
- 
+
+include_directories(${LIBEV_INCLUDE_DIR}) 
+
 find_library(LIBMBEDTLS mbedtls)
 find_package(OpenSSL)
 
@@ -13,6 +21,8 @@ set(HTTPS_SUPPORT_DEFAULT "ON")
 
 if (NOT OPENSSL_FOUND AND NOT LIBMBEDTLS)
 	set(HTTPS_SUPPORT_DEFAULT "OFF")
+else()
+	include_directories(${OPENSSL_INCLUDE_DIR})	
 endif (NOT OPENSSL_FOUND AND NOT LIBMBEDTLS)
 
 option(HTTPS_SUPPORT "whether to support https" ${HTTPS_SUPPORT_DEFAULT})

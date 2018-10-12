@@ -1,3 +1,4 @@
+include_directories(/usr/local/include)
 add_executable(simplest_web simplest_web.c)
 target_link_libraries(simplest_web evmongoose)
 

@@ -3,7 +3,11 @@
 #include "lua_mongoose.h"
 
 #include <syslog.h>
+#ifdef __APPLE__
+#include <util.h>
+#else
 #include <pty.h>
+#endif
 #include <getopt.h>
 #include <string.h>
 #include <errno.h>
@@ -12,7 +16,7 @@
 #include <sys/wait.h>
 #include <signal.h>
 
-static int lp_openlog(lua_State *L) 
+static int lp_openlog(lua_State *L)
 {
 	const char *ident = luaL_checkstring(L, 1);
 	int option = luaL_checkint(L, 2);
@@ -44,15 +48,15 @@ static int lp_mg_getopt_iter(lua_State *L)
 	int argc = lua_tointeger(L, lua_upvalueindex(2));
 	char **argv = (char **)lua_touserdata(L, lua_upvalueindex(3));
 	struct option *longopts = (struct option *)lua_touserdata(L, lua_upvalueindex(4));;
-	
+
 	opt = getopt_long(argc, argv, optstring, longopts, &longindex);
 	if (opt == -1)
 		return 0;
-	
+
 	lua_pushlstring(L, (char *)&opt, 1);
 	lua_pushstring(L, optarg);
 	lua_pushinteger(L, longindex + 1);
-	
+
 	return 3;
 }
 
@@ -67,9 +71,9 @@ static int lp_mg_getopt(lua_State *L)
 
 	argc = lua_rawlen(L, 1) + 1;
 	lua_pushinteger(L, argc);
-	
+
 	argv = lua_newuserdata(L, argc * sizeof(char *));
-	
+
 	for (i = 0; i < argc; i++) {
 		lua_rawgeti(L, 1, i);
 		argv[i] = (char *)luaL_checkstring(L, -1);
@@ -80,7 +84,7 @@ static int lp_mg_getopt(lua_State *L)
 		n = lua_rawlen(L, 3);
 
 	longopts = lua_newuserdata(L, (n + 1) * sizeof(struct option));
-	
+
 	longopts[n].name = NULL;
 	longopts[n].has_arg = 0;
 	longopts[n].flag = NULL;
@@ -89,22 +93,22 @@ static int lp_mg_getopt(lua_State *L)
 	for (i = 1; i <= n; i++) {
 		const char *name, *val;
 		int has_arg;
-		
+
 		lua_rawgeti(L, 3, i);
 		luaL_checktype(L, -1, LUA_TTABLE);
 
 		lua_rawgeti(L, -1, 1);
 		name = luaL_checkstring(L, -1);
 		lua_pop(L, 1);
-		
+
 		lua_rawgeti(L, -1, 2);
 		has_arg = lua_toboolean(L, -1);
 		lua_pop(L, 1);
-		
+
 		lua_rawgeti(L, -1, 3);
 		val = luaL_checkstring(L, -1);
 		lua_pop(L, 2);
-		
+
 		longopts[i - 1].name = name;
 		longopts[i - 1].has_arg = has_arg;
 		longopts[i - 1].flag = NULL;
@@ -122,19 +126,19 @@ static int lp_forkpty(lua_State *L)
 {
 	pid_t pid;
 	int pty;
-	
+
 	if (lua_gettop(L)) {
 		struct termios t;
-			
+
 		luaL_checktype(L, 1, LUA_TTABLE);
-		
+
 		memset(&t, 0, sizeof(t));
-		
+
 		lua_getfield(L, 1, "iflag"); t.c_iflag = luaL_optinteger(L, -1, 0);
 		lua_getfield(L, 1, "oflag"); t.c_oflag = luaL_optinteger(L, -1, 0);
 		lua_getfield(L, 1, "cflag"); t.c_cflag = luaL_optinteger(L, -1, 0);
 		lua_getfield(L, 1, "lflag"); t.c_lflag = luaL_optinteger(L, -1, 0);
-		
+
 		lua_getfield(L, 1, "cc");
 		if (!lua_isnoneornil(L, -1)) {
 			luaL_checktype(L, -1, LUA_TTABLE);
@@ -149,13 +153,13 @@ static int lp_forkpty(lua_State *L)
 	} else {
 		pid = forkpty(&pty, NULL, NULL, NULL);
 	}
-	
-	if (pid < 0) 
+
+	if (pid < 0)
 		luaL_error(L, strerror(errno));
 
 	lua_pushinteger(L, pid);
 	lua_pushinteger(L, pty);
-	
+
 	return 2;
 }
 
@@ -190,7 +194,7 @@ static int lp_read(lua_State *L)
 	buf = malloc(count);
 	if (!buf)
 		goto err;
-	
+
 	ret = read(fd, buf, count);
 	if (ret < 0)
 		goto err;
@@ -198,11 +202,11 @@ static int lp_read(lua_State *L)
 	lua_pushlstring(L, buf, ret);
 	free(buf);
 	return 1;
-	
+
 err:
 	if (buf)
 		free(buf);
-	
+
 	lua_pushnil(L);
 	lua_pushstring(L, strerror(errno));
 	return 2;
@@ -213,7 +217,7 @@ static int lp_write(lua_State *L)
 	int fd = luaL_checkinteger(L, 1);
 	size_t count;
 	const char *buf = luaL_checklstring(L, 2, &count);
-	
+
 	count = write(fd, buf, count);
 	if (count < 0) {
 		lua_pushstring(L, strerror(errno));
@@ -222,7 +226,7 @@ static int lp_write(lua_State *L)
 	}
 
 	lua_pushinteger(L, count);
-	return 1;	
+	return 1;
 }
 
 static int lp_run_exec(lua_State *L, int use_shell)
@@ -232,10 +236,10 @@ static int lp_run_exec(lua_State *L, int use_shell)
 	int i, n, ret;
 
 	n = 0;
-	
+
 	if (lua_type(L, 2) == LUA_TTABLE)
 		n = lua_rawlen(L, 2);
-	
+
 	argv = lua_newuserdata(L, (n + 2) * sizeof(char*));
 
 	argv[0] = (char *)path;
@@ -277,7 +281,7 @@ static int lp_wait(lua_State *L)
 	pid_t pid = luaL_checkinteger(L, 1);
 	int options = lua_tointeger(L, 2);
 	int status;
-	
+
 	pid = waitpid(pid, &status, options);
 	if (pid < 0) {
 		lua_pushnil(L);
@@ -286,7 +290,7 @@ static int lp_wait(lua_State *L)
 	}
 
 	lua_pushinteger(L, pid);
-	
+
 	if (WIFEXITED(status)) {
 		lua_pushliteral(L,"exited");
 		lua_pushinteger(L, WEXITSTATUS(status));
@@ -300,7 +304,7 @@ static int lp_wait(lua_State *L)
 		lua_pushinteger(L, WSTOPSIG(status));
 		return 3;
 	}
-	
+
 	return 1;
 }
 
@@ -327,7 +331,7 @@ static int lp_fork(lua_State *L)
 		lua_pushstring(L, strerror(errno));
 		return 2;
 	}
-	
+
 	lua_pushinteger(L, pid);
 	return 1;
 }
@@ -340,7 +344,7 @@ static int lp_close(lua_State *L)
 		lua_pushstring(L, strerror(errno));
 		return 2;
 	}
-	
+
 	lua_pushinteger(L, 0);
 	return 1;
 }
@@ -349,13 +353,13 @@ static int lp_daemon(lua_State *L)
 {
 	int nochdir = lua_tointeger(L, 1);
 	int noclose = lua_tointeger(L, 2);
-	
+
 	if (daemon(nochdir, noclose) < 0) {
 		lua_pushnil(L);
 		lua_pushstring(L, strerror(errno));
 		return 2;
 	}
-	
+
 	lua_pushinteger(L, 0);
 	return 1;
 }
@@ -363,13 +367,13 @@ static int lp_daemon(lua_State *L)
 static int lp_usleep(lua_State *L)
 {
 	int usec = luaL_checkinteger(L, 1);
-	
+
 	if (usleep(usec) < 0) {
 		lua_pushnil(L);
 		lua_pushstring(L, strerror(errno));
 		return 2;
 	}
-	
+
 	lua_pushinteger(L, 0);
 	return 1;
 }
